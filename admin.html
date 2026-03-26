@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LeadGen Pro - Admin Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide/dist/lucide.js"></script>
+</head>
+<body class="bg-gray-900 text-gray-200">
+
+    <!-- Admin Auth Modal -->
+    <div id="admin-auth-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center hidden">
+        <div class="bg-gray-800 p-6 rounded-lg w-96">
+            <h3 class="text-lg font-bold mb-2">Admin Login</h3>
+            <form id="admin-login-form">
+                <input type="email" id="admin-email" placeholder="Email" class="w-full mb-2 p-2 rounded"/>
+                <input type="password" id="admin-password" placeholder="Password" class="w-full mb-2 p-2 rounded"/>
+                <button class="w-full bg-purple-500 p-2 rounded" type="submit">Login</button>
+            </form>
+            <button onclick="hideAdminAuthModal()" class="mt-2 w-full bg-gray-600 p-2 rounded">Close</button>
+        </div>
+    </div>
+
+    <!-- Admin Dashboard -->
+    <section class="p-6">
+        <h1 class="text-3xl font-bold mb-4">Admin Dashboard</h1>
+        <div class="grid grid-cols-4 gap-4 mb-4">
+            <div>Total Requests: <span id="admin-total-requests">0</span></div>
+            <div>Pending: <span id="admin-pending">0</span></div>
+            <div>Approved: <span id="admin-approved">0</span></div>
+            <div>Rejected: <span id="admin-rejected">0</span></div>
+        </div>
+
+        <select id="admin-status-filter" class="mb-2 p-2 rounded">
+            <option value="all">All</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+        </select>
+
+        <table class="w-full table-admin bg-gray-800 rounded">
+            <thead>
+                <tr>
+                    <th class="px-6 py-4">User Email</th>
+                    <th class="px
