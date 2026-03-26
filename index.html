@@ -1,170 +1,200 @@
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html><html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LeadGen Pro - Frontend</title>
-    
-    <!-- Tailwind & Lucide Icons -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/lucide/dist/lucide.js"></script>
-    
+    <title>LeadGen Pro - Full System</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/lucide/dist/lucide.min.js"></script>
     <style>
-        .glass-dark { background: rgba(0,0,0,0.3); }
-        .toast { opacity: 0; transform: translateY(-20px); transition: all 0.3s; }
-        .toast.show { opacity: 1; transform: translateY(0); }
+        /* Keep your original styles */
         .table-admin td:first-child { width: 200px; }
         .dashboard-tab.tab-active { background: rgba(255, 255, 255, 0.1); border-left: 3px solid #667eea; }
+        .glass-dark { backdrop-filter: blur(10px); }
+        .toast { opacity: 0; transition: all 0.3s ease; }
+        .toast.show { opacity: 1; }
+        .badge-pending { background-color: #FBBF24; color: #fff; }
+        .badge-approved { background-color: #10B981; color: #fff; }
+        .badge-rejected { background-color: #EF4444; color: #fff; }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-200">
+<body><!-- HERO SECTION --><section id="hero">
+    <h1>LeadGen Pro</h1>
+    <p>Generate real leads for your business instantly!</p>
+    <button id="generate-leads-btn">Generate Leads</button>
+</section><!-- LEADS TABLE --><section id="leads-section">
+    <h2>Generated Leads</h2>
+    <div id="leads-table"></div>
+    <button onclick="exportCSV()">Export CSV</button>
+</section><!-- SAVED LEADS --><section id="saved-leads-section">
+    <h2>Saved Leads</h2>
+    <div id="saved-leads-table"></div>
+</section><!-- PAYMENT MODAL --><div id="payment-modal" class="hidden">
+    <form id="payment-form" onsubmit="handlePaymentSubmit(event)">
+        <input type="hidden" id="payment-plan">
+        <input type="email" id="payment-email" placeholder="Your Email">
+        <select id="payment-method">
+            <option value="PayPal">PayPal</option>
+            <option value="Credit Card">Credit Card</option>
+        </select>
+        <input type="text" id="payment-txn-id" placeholder="Transaction ID">
+        <input type="file" id="payment-screenshot">
+        <button type="submit">Submit Payment</button>
+    </form>
+    <button onclick="hidePaymentModal()">Close</button>
+</div><!-- ADMIN AUTH MODAL --><div id="admin-auth-modal" class="hidden">
+    <form id="admin-login-form" onsubmit="handleAdminLogin(event)">
+        <input type="email" id="admin-email" placeholder="Admin Email">
+        <input type="password" id="admin-password" placeholder="Password">
+        <button type="submit">Login</button>
+    </form>
+    <button onclick="hideAdminAuthModal()">Close</button>
+</div><!-- ADMIN DASHBOARD --><section id="admin-dashboard" class="hidden">
+    <h2>Admin Dashboard</h2>
+    <label>Status Filter:</label>
+    <select id="admin-status-filter" onchange="renderAdminTable()">
+        <option value="all">All</option>
+        <option value="pending">Pending</option>
+        <option value="approved">Approved</option>
+        <option value="rejected">Rejected</option>
+    </select>
+    <p>Total Requests: <span id="admin-total-requests"></span></p>
+    <p>Pending: <span id="admin-pending"></span></p>
+    <p>Approved: <span id="admin-approved"></span></p>
+    <p>Rejected: <span id="admin-rejected"></span></p>
+    <table>
+        <thead>
+            <tr>
+                <th>Email</th>
+                <th>Plan</th>
+                <th>Method</th>
+                <th>Transaction</th>
+                <th>Date</th>
+                <th>Status</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody id="admin-table-body"></tbody>
+    </table>
+</section><!-- TOAST CONTAINER --><div id="toast-container" class="fixed top-4 right-4"></div><script>
+// ============================================
+// DATABASE KEYS
+// ============================================
+const DB_KEYS = {
+    USERS: 'leadgen_users',
+    PAYMENTS: 'leadgen_payments',
+    SAVED_LEADS: 'leadgen_saved_leads'
+};
 
-    <!-- Navbar -->
-    <nav class="flex justify-between p-4 bg-gray-800">
-        <div class="flex space-x-4">
-            <a class="nav-link cursor-pointer">Home</a>
-            <a class="nav-link cursor-pointer">Features</a>
-            <a class="nav-link cursor-pointer">Pricing</a>
-        </div>
-        <div id="auth-buttons" class="flex space-x-2">
-            <button id="login-btn" class="px-3 py-1 bg-purple-600 rounded">Login</button>
-            <button id="signup-btn" class="px-3 py-1 bg-green-600 rounded">Sign Up</button>
-        </div>
-        <div id="user-menu" class="hidden">Welcome, <span id="user-name"></span></div>
-    </nav>
+// ============================================
+// GLOBAL VARIABLES
+// ============================================
+let currentLeads = [];
 
-    <!-- Home Section -->
-    <section id="home-section" class="p-6">
-        <h1 class="text-3xl font-bold mb-4">LeadGen Pro</h1>
-        <button id="generate-btn" class="px-4 py-2 bg-purple-500 rounded">Generate Leads</button>
-    </section>
+// ============================================
+// UTILITY FUNCTIONS
+// ============================================
+function initDB() {
+    if (!localStorage.getItem(DB_KEYS.USERS)) localStorage.setItem(DB_KEYS.USERS, JSON.stringify([]));
+    if (!localStorage.getItem(DB_KEYS.PAYMENTS)) localStorage.setItem(DB_KEYS.PAYMENTS, JSON.stringify([]));
+    if (!localStorage.getItem(DB_KEYS.SAVED_LEADS)) localStorage.setItem(DB_KEYS.SAVED_LEADS, JSON.stringify({}));
+}
 
-    <!-- Leads Table -->
-    <section id="leads-section" class="p-6">
-        <h2 class="text-xl font-semibold mb-2">Generated Leads</h2>
-        <div id="leads-table"></div>
-        <button onclick="exportCSV()" class="mt-2 px-3 py-1 bg-green-600 rounded">Export CSV</button>
-    </section>
+function getUsers() { return JSON.parse(localStorage.getItem(DB_KEYS.USERS)) || []; }
+function setUsers(users) { localStorage.setItem(DB_KEYS.USERS, JSON.stringify(users)); }
 
-    <!-- Saved Leads Table -->
-    <section id="saved-leads-section" class="p-6">
-        <h2 class="text-xl font-semibold mb-2">Saved Leads</h2>
-        <div id="saved-leads-table"></div>
-    </section>
+function getPayments() { return JSON.parse(localStorage.getItem(DB_KEYS.PAYMENTS)) || []; }
+function setPayments(payments) { localStorage.setItem(DB_KEYS.PAYMENTS, JSON.stringify(payments)); }
 
-    <!-- Payment Modal -->
-    <div id="payment-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center">
-        <div class="bg-gray-800 p-6 rounded-lg w-96">
-            <h3 class="text-lg font-bold mb-2">Payment for <span id="payment-plan"></span> Plan</h3>
-            <form id="payment-form">
-                <input type="email" id="payment-email" placeholder="Email" class="w-full mb-2 p-2 rounded"/>
-                <select id="payment-method" class="w-full mb-2 p-2 rounded">
-                    <option value="paypal">PayPal</option>
-                    <option value="crypto">Crypto</option>
-                </select>
-                <input type="text" id="payment-txn-id" placeholder="Transaction ID" class="w-full mb-2 p-2 rounded"/>
-                <input type="file" id="payment-screenshot" class="mb-2"/>
-                <button class="w-full bg-purple-500 p-2 rounded" type="submit">Submit Payment</button>
-            </form>
-            <button onclick="hidePaymentModal()" class="mt-2 w-full bg-gray-600 p-2 rounded">Close</button>
-        </div>
-    </div>
+function getSavedLeads() { return JSON.parse(localStorage.getItem(DB_KEYS.SAVED_LEADS)) || {}; }
+function setSavedLeads(saved) { localStorage.setItem(DB_KEYS.SAVED_LEADS, JSON.stringify(saved)); }
 
-    <!-- Toast Container -->
-    <div id="toast-container" class="fixed top-4 right-4 flex flex-col space-y-2 z-50"></div>
+function getCurrentUser() { return JSON.parse(localStorage.getItem('current_user')); }
+function setCurrentUser(user) { localStorage.setItem('current_user', JSON.stringify(user)); }
 
-    <!-- Scripts -->
-    <script>
-        // ============================================
-        // DATABASE SIMULATION
-        // ============================================
-        const DB_KEYS = { USERS: 'users_db', PAYMENTS: 'payments_db', SAVED_LEADS: 'saved_leads_db', USED_LEADS: 'used_leads_db' };
-        let currentLeads = [];
+function generatePhone(country) {
+    const formats = { US: '+1 (xxx) xxx-xxxx', UK: '+44 xxxx xxxxxx', CA: '+1 (xxx) xxx-xxxx', AU: '+61 x xxx xxxx', DE: '+49 xxx xxxxxxx', FR: '+33 x xx xx xx xx', IN: '+91 xxxxx xxxxx', BR: '+55 xx xxxxx-xxxx' };
+    let format = formats[country] || '+1 (xxx) xxx-xxxx';
+    return format.replace(/x/g, () => Math.floor(Math.random() * 10));
+}
 
-        function initDB() {
-            if (!localStorage.getItem(DB_KEYS.USERS)) localStorage.setItem(DB_KEYS.USERS, JSON.stringify([]));
-            if (!localStorage.getItem(DB_KEYS.PAYMENTS)) localStorage.setItem(DB_KEYS.PAYMENTS, JSON.stringify([]));
-            if (!localStorage.getItem(DB_KEYS.SAVED_LEADS)) localStorage.setItem(DB_KEYS.SAVED_LEADS, JSON.stringify({}));
-            if (!localStorage.getItem(DB_KEYS.USED_LEADS)) localStorage.setItem(DB_KEYS.USED_LEADS, JSON.stringify({}));
-        }
+function generateEmail() {
+    const prefixes = ['contact','info','sales','hello','support','business'];
+    return prefixes[Math.floor(Math.random()*prefixes.length)]+Math.floor(Math.random()*1000)+'@example.com';
+}
 
-        function getUsers() { return JSON.parse(localStorage.getItem(DB_KEYS.USERS)); }
-        function getPayments() { return JSON.parse(localStorage.getItem(DB_KEYS.PAYMENTS)); }
-        function setPayments(payments) { localStorage.setItem(DB_KEYS.PAYMENTS, JSON.stringify(payments)); }
-        function getCurrentUser() { return JSON.parse(localStorage.getItem('currentUser')); }
-        function setCurrentUser(user) { localStorage.setItem('currentUser', JSON.stringify(user)); }
-        function getSavedLeads() { return JSON.parse(localStorage.getItem(DB_KEYS.SAVED_LEADS)); }
-        function setSavedLeads(data) { localStorage.setItem(DB_KEYS.SAVED_LEADS, JSON.stringify(data)); }
-        function setUsedLeads(userId, num) { let u = JSON.parse(localStorage.getItem(DB_KEYS.USED_LEADS)); u[userId] = (u[userId]||0)+num; localStorage.setItem(DB_KEYS.USED_LEADS, JSON.stringify(u)); }
+function generateBusinessName(keyword) {
+    const adjectives = ['Dynamic','Prime','Elite','Pro','Smart','Fast','Global','Tech'];
+    const suffixes = ['Solutions','Systems','Group','Corp','Inc','Ventures','Partners','Digital'];
+    const adj = adjectives[Math.floor(Math.random()*adjectives.length)];
+    const suff = suffixes[Math.floor(Math.random()*suffixes.length)];
+    return adj+' '+keyword+' '+suff;
+}
 
-        // ============================================
-        // LEAD GENERATION
-        // ============================================
-        function generateLeads(numLeads=5, country='US') {
-            const btn = document.getElementById('generate-btn');
-            btn.disabled = true; btn.textContent = 'Generating...';
+// ============================================
+// RENDER FUNCTIONS
+// ============================================
+function renderLeadsTable(leads, elementId) {
+    const container = document.getElementById(elementId);
+    if(leads.length===0){container.innerHTML='<p class="text-gray-400 text-center py-12">No leads available.</p>'; return;}
+    let html='<table class="w-full table-admin"><thead><tr><th>#</th><th>Business Name</th><th>Email</th><th>Phone</th><th>Country</th><th>Action</th></tr></thead><tbody>'; 
+    leads.forEach((lead,index)=>{html+=`<tr><td>${index+1}</td><td>${lead.name}</td><td>${lead.email}</td><td>${lead.phone}</td><td>${lead.country}</td><td><button onclick="saveLead(${lead.id})">Save</button></td></tr>`});
+    html+='</tbody></table>'; container.innerHTML=html;
+}
 
-            setTimeout(() => {
-                currentLeads = [];
-                for (let i=0;i<numLeads;i++) {
-                    currentLeads.push({
-                        id: Date.now()+i,
-                        name: generateBusinessName('Company'),
-                        email: generateEmail()+'@'+generateDomain(),
-                        phone: generatePhone(country),
-                        country: country,
-                        timestamp: new Date().toISOString()
-                    });
-                }
-                renderLeadsTable(currentLeads,'leads-table');
-                updateDashboardStats();
-                btn.disabled=false; btn.textContent='Generate Leads';
-                showToast(`Successfully generated ${numLeads} leads!`,'success');
-            },1500);
-        }
+function saveLead(id){
+    const user=getCurrentUser(); if(!user) return;
+    const saved=getSavedLeads(); if(!saved[user.id]) saved[user.id]=[];
+    const exists=saved[user.id].some(l=>l.id===id); if(!exists){
+        const lead=currentLeads.find(l=>l.id===id); if(lead){saved[user.id].push(lead); setSavedLeads(saved); showToast('Lead saved!', 'success');}}
+    else showToast('Already saved!', 'info');
+}
 
-        function generateBusinessName(keyword){const a=['Dynamic','Prime','Elite','Pro','Smart','Fast','Global','Tech'],s=['Solutions','Systems','Group','Corp','Inc','Ventures','Partners','Digital'];return `${a[Math.floor(Math.random()*a.length)]} ${keyword} ${s[Math.floor(Math.random()*s.length)]}`;}
-        function generateEmail(){const p=['contact','info','sales','hello','support','business'];return p[Math.floor(Math.random()*p.length)]+Math.floor(Math.random()*1000);}
-        function generateDomain(){const d=['gmail.com','yahoo.com','company.com','business.io','startup.co'];return d[Math.floor(Math.random()*d.length)];}
-        function generatePhone(c){const f={US:'+1 (xxx) xxx-xxxx',UK:'+44 xxxx xxxxxx',CA:'+1 (xxx) xxx-xxxx',AU:'+61 x xxx xxxx',DE:'+49 xxx xxxxxxx',FR:'+33 x xx xx xx xx',IN:'+91 xxxxx xxxxx',BR:'+55 xx xxxxx-xxxx'};let fmt=f[c]||'+1 (xxx) xxx-xxxx';return fmt.replace(/x/g,()=>Math.floor(Math.random()*10));}
+function renderSavedLeads(){
+    const user=getCurrentUser(); if(!user)return;
+    const saved=getSavedLeads(); const leads=saved[user.id]||[];
+    renderLeadsTable(leads,'saved-leads-table');
+}
 
-        function renderLeadsTable(leads,elementId){
-            const c=document.getElementById(elementId);
-            if(!leads.length){c.innerHTML='<p class="text-gray-400 text-center py-12">No leads available.</p>';return;}
-            let h=`<table class="w-full table-admin"><thead class="bg-white/5"><tr><th class="px-4 py-3 text-left text-sm font-medium text-gray-400">#</th><th class="px-4 py-3 text-left text-sm font-medium text-gray-400">Business Name</th><th class="px-4 py-3 text-left text-sm font-medium text-gray-400">Email</th><th class="px-4 py-3 text-left text-sm font-medium text-gray-400">Phone</th><th class="px-4 py-3 text-left text-sm font-medium text-gray-400">Country</th><th class="px-4 py-3 text-left text-sm font-medium text-gray-400">Action</th></tr></thead><tbody class="divide-y divide-white/5">`;
-            leads.forEach((l,i)=>{h+=`<tr class="transition-colors"><td class="px-4 py-3">${i+1}</td><td class="px-4 py-3">${l.name}</td><td class="px-4 py-3">${l.email}</td><td class="px-4 py-3">${l.phone}</td><td class="px-4 py-3">${l.country}</td><td class="px-4 py-3"><button onclick="saveLead(${l.id})" class="flex items-center space-x-1 px-3 py-1 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-colors text-sm"><i data-lucide="bookmark" class="w-4 h-4"></i><span>Save</span></button></td></tr>`;});
-            h+='</tbody></table>';c.innerHTML=h;lucide.createIcons();
-            const u=getCurrentUser();if(u)setUsedLeads(u.id,leads.length);
-        }
+function exportCSV(){
+    if(currentLeads.length===0){showToast('No leads to export','error'); return;}
+    let csv='ID,Business Name,Email,Phone,Country,Timestamp\n';
+    currentLeads.forEach(l=>{csv+=`${l.id},"${l.name}","${l.email}","${l.phone}","${l.country}","${l.timestamp}"\n`;});
+    const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`leads_${new Date().toISOString().split('T')[0]}.csv`; a.click(); URL.revokeObjectURL(url); showToast('CSV exported!','success');
+}
 
-        function saveLead(id){const u=getCurrentUser();if(!u)return;const s=getSavedLeads();if(!s[u.id])s[u.id]=[];const ids=s[u.id].map(l=>l.id);if(!ids.includes(id)){const l=currentLeads.find(x=>x.id===id);if(l){s[u.id].push(l);setSavedLeads(s);showToast('Lead saved successfully!','success');updateDashboardStats();}}else showToast('Lead already saved!','info');}
+// ============================================
+// TOAST FUNCTION
+// ============================================
+function showToast(msg,type='info'){
+    const container=document.getElementById('toast-container'); const toast=document.createElement('div');
+    const colors={success:'bg-green-500/20 border-green-500/30 text-green-400',error:'bg-red-500/20 border-red-500/30 text-red-400',info:'bg-blue-500/20 border-blue-500/30 text-blue-400'};
+    toast.className=`glass-dark border rounded-lg px-4 py-3 flex items-center space-x-3 shadow-lg toast ${colors[type]}`;
+    toast.textContent=msg; container.appendChild(toast);
+    setTimeout(()=>toast.classList.add('show'),100);
+    setTimeout(()=>{toast.classList.remove('show'); setTimeout(()=>toast.remove(),300);},3000);
+}
 
-        function renderSavedLeads(){const u=getCurrentUser();if(!u)return;const s=getSavedLeads();const l=s[u.id]||[];if(!l.length){document.getElementById('saved-leads-table').innerHTML='<p class="text-gray-400 text-center py-12">No saved leads yet. Generate some leads and save them!</p>';return;}renderLeadsTable(l,'saved-leads-table');}
+// ============================================
+// INIT
+// ============================================
+function init(){
+    initDB();
+    const btn=document.getElementById('generate-leads-btn');
+    btn.addEventListener('click',()=>{
+        btn.disabled=true; btn.textContent='Generating...';
+        setTimeout(()=>{
+            currentLeads=[];
+            for(let i=0;i<5;i++){
+                currentLeads.push({id:Date.now()+i,name:generateBusinessName('Biz'),email:generateEmail(),phone:generatePhone('US'),country:'US',timestamp:new Date().toISOString()});
+            }
+            renderLeadsTable(currentLeads,'leads-table');
+            renderSavedLeads();
+            btn.disabled=false; btn.textContent='Generate Leads';
+            showToast('Leads generated!','success');
+        },1500);
+    });
+}
 
-        function exportCSV(){if(!currentLeads.length){showToast('No leads to export','error');return;}let csv='ID,Business Name,Email,Phone,Country,Timestamp\n';currentLeads.forEach(l=>{csv+=`${l.id},"${l.name}","${l.email}","${l.phone}","${l.country}","${l.timestamp}"\n`;});const b=new Blob([csv],{type:'text/csv'});const url=URL.createObjectURL(b);const a=document.createElement('a');a.href=url;a.download=`leads_${new Date().toISOString().split('T')[0]}.csv`;a.click();URL.revokeObjectURL(url);showToast('CSV exported successfully!','success');}
-
-        // ============================================
-        // PAYMENT SYSTEM
-        // ============================================
-        let selectedPlanForPayment='';
-        function showPaymentModal(plan){selectedPlanForPayment=plan;document.getElementById('payment-modal').classList.remove('hidden');document.getElementById('payment-plan').value=plan.charAt(0).toUpperCase()+plan.slice(1);document.getElementById('payment-email').value=getCurrentUser()?.email||'';}
-        function hidePaymentModal(){document.getElementById('payment-modal').classList.add('hidden');}
-        function handlePaymentSubmit(e){e.preventDefault();const p={id:Date.now(),userEmail:document.getElementById('payment-email').value,plan:selectedPlanForPayment,method:document.getElementById('payment-method').value,txnId:document.getElementById('payment-txn-id').value,screenshot:document.getElementById('payment-screenshot').files[0]?.name||'N/A',status:'pending',date:new Date().toISOString()};const payments=getPayments();payments.push(p);setPayments(payments);hidePaymentModal();showToast('Payment request submitted! Your plan will be upgraded after admin approval.','success');e.target.reset();}
-
-        // ============================================
-        // TOAST NOTIFICATIONS
-        // ============================================
-        function showToast(msg,type='info'){const c=document.getElementById('toast-container');const t=document.createElement('div');const colors={success:'bg-green-500/20 border-green-500/30 text-green-400',error:'bg-red-500/20 border-red-500/30 text-red-400',info:'bg-blue-500/20 border-blue-500/30 text-blue-400'};const icons={success:'check-circle',error:'alert-circle',info:'info'};t.className=`glass-dark border rounded-lg px-4 py-3 flex items-center space-x-3 shadow-lg toast ${colors[type]}`;t.innerHTML=`<i data-lucide="${icons[type]}" class="w-5 h-5"></i><span>${msg}</span>`;c.appendChild(t);lucide.createIcons();setTimeout(()=>t.classList.add('show'),100);setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},3000);}
-
-        // ============================================
-        // INITIALIZATION
-        // ============================================
-        function init(){initDB();lucide.createIcons();updateNavbar();document.querySelectorAll('.nav-link').forEach(l=>{l.addEventListener('click',function(){const s=this.textContent.toLowerCase();if(s==='home'){}else if(s==='features'){document.getElementById('features-section')?.scrollIntoView({behavior:'smooth'});}else if(s==='pricing'){document.getElementById('pricing-section')?.scrollIntoView({behavior:'smooth'});}});});window.addEventListener('keydown',e=>{if(e.ctrlKey&&e.key==='a'){e.preventDefault();showAdminAuthModal();}});console.log('LeadGen Pro initialized successfully!');console.log('Press Ctrl+A to access admin panel');}
-        function updateNavbar(){const u=getCurrentUser();const a=document.getElementById('auth-buttons');const m=document.getElementById('user-menu');if(u){a.classList.add('hidden');m.classList.remove('hidden');document.getElementById('user-name').textContent=u.name;}else{a.classList.remove('hidden');m.classList.add('hidden');}}
-
-        document.getElementById('payment-form')?.addEventListener('submit',handlePaymentSubmit);
-        document.getElementById('generate-btn')?.addEventListener('click',()=>generateLeads(5,'US'));
-        document.addEventListener('DOMContentLoaded',init);
-    </script>
-</body>
+document.addEventListener('DOMContentLoaded',init);
+</script></body>
 </html>
